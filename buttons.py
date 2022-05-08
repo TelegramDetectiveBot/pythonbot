@@ -1,6 +1,6 @@
 import telebot
 from telebot import types
-from os import walk
+import os
 
 PAGE = 0
 ITEMS_ON_PAGE = 3
@@ -13,16 +13,13 @@ def get_token():
 
 bot = telebot.TeleBot(get_token())
 
-@bot.message_handler(commands="reply")
-def button_generator(message):
+def button_generator(markup_array, string_array):
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard = True, one_time_keyboard = True)
-    test_array = [1,2,1]
-    test_strings = ["abc","abcd","abcde","blyad"]
     prev_number = 0
-    for number in test_array:
+    for number in markup_array:
         line = []
         for i in range(prev_number, number + prev_number):
-            line.append(test_strings[i])
+            line.append(string_array[i])
         keyboard.add(*line)
         prev_number = number + prev_number
 
@@ -33,7 +30,8 @@ def button_generator(message):
 def list_of_games(message):
     global ITEMS_ON_PAGE
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard = True, one_time_keyboard = True)
-    filenames = next(walk("games"), (None, None, []))[2]
+    dirname = os.getcwd() + "/games"
+    filenames = os.listdir(dirname)
     print(filenames)
     counter = 0
     items = ITEMS_ON_PAGE
@@ -45,7 +43,6 @@ def list_of_games(message):
         keyboard.add("Далее")
     msg = bot.send_message(message.chat.id, "Выберите игру:", reply_markup = keyboard)
     game_name = bot.register_next_step_handler(msg, list_of_games_paging)
-    print(game_name)
     return game_name
 
 def list_of_games_paging(message):
@@ -56,11 +53,11 @@ def list_of_games_paging(message):
     elif message.text == "Назад":
         PAGE = PAGE - 1
     else:
-        print(message.text)
         return message.text
     
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard = True, one_time_keyboard = True)
-    filenames = next(walk("games"), (None, None, []))[2]
+    dirname = os.getcwd() + "/games"
+    filenames = os.listdir(dirname)
     items = PAGE * ITEMS_ON_PAGE + ITEMS_ON_PAGE
     if len(filenames) < items:
         items = len(filenames)
