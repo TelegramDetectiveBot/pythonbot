@@ -14,6 +14,25 @@ sessions = []
 PAGE = 0
 ITEMS_ON_PAGE = 3
 
+def send_text(user_id, text_array, keyboard = None):
+    current_len = 0
+    send_str = ""
+    is_last_send = False
+    for text in text_array:
+        current_len += len(text) + 1
+        send_str += text + " "
+        if current_len >= config.max_message_char:
+            if text == text_array[-1]:
+                bot.send_message(user_id, send_str, reply_markup = keyboard)
+                is_last_send = True
+            else:
+                bot.send_message(user_id, send_str)
+            current_len = 0
+            send_str = ""
+    
+    if not is_last_send:
+        bot.send_message(user_id, send_str, reply_markup = keyboard)
+
 def get_game(game_name):
     with open("games/"+game_name+".json", 'r', encoding='utf-8') as f:
         game = json.load(f)
@@ -35,14 +54,20 @@ def update_current_text(user_id, text_id):
     
     sessions[session_id]["current_text"] = text_id
 
-def update_possible_texts(user_id, text_id):
+def update_possible_texts(user_id, text_id_array):
     global sessions
     session_id = 0
     for i, session in enumerate(sessions):
         if session["user_id"] == user_id:
             session_id = i
     
-    sessions[session_id]["possible_texts"].append(text_id)
+    for text_id in text_id_array:
+        is_available = False
+        for available_text in sessions[session_id]["possible_texts"]:
+            if text_id == available_text:
+                is_available = True
+        if not is_available:
+           sessions[session_id]["possible_texts"].append(text_id) 
 
 def exit_game(user_id):
     global sessions
@@ -55,12 +80,13 @@ def start_game(user_id, game_name):
     game = get_game(game_name)
 
     bot.send_message(user_id, game["Name"])
-    bot.send_message(user_id, game["Start text"])
+    send_text(user_id, game["Start text"])
     markup_array = [1] * len(game["Available texts"])
     string_array = [game["Texts"][i]["Name"] for i in game["Available texts"]]
     keyboard = buttons.button_generator(markup_array, string_array)
-    for text_id in game["Available texts"]:
-        bot.send_message(user_id, game["Texts"][text_id]["Name"], reply_markup = keyboard)
+    keyboard = all_texts_keyboard(game, game["Available texts"])
+    bot_str = all_texts_string(game, game["Available texts"])
+    bot.send_message(user_id, bot_str, reply_markup = keyboard)
 
 
 def choose_game(message):
@@ -134,7 +160,7 @@ def list_of_games_paging(message):
             keyboard.add("Назад", "Далее")
         else:
             keyboard.add("Назад")
-    msg = bot.send_message(message.chat.id, "Выберите игру:", reply_markup = keyboard)
+    bot.send_message(message.chat.id, "Выберите игру:", reply_markup = keyboard)
 
 @bot.message_handler(commands=["start"])
 def start(message, res=False):
@@ -157,7 +183,7 @@ def step(message):
         markup_array = [1]
         string_array = ["Все тексты"]
         keyboard = buttons.button_generator(markup_array, string_array)
-        bot.send_message(user_id, game["Start text"], reply_markup = keyboard)
+        send_text(user_id, game["Start text"], keyboard)
 
     if message.text == "Все тексты":
         keyboard = all_texts_keyboard(game, possible_texts)
@@ -171,7 +197,7 @@ def step(message):
                 text_id = text["Id"]
         update_current_text(user_id, text_id)
         keyboard = answers_keyboard(game["Texts"][text_id]["Answers"])
-        bot.send_message(user_id, game["Texts"][text_id]["Bot text"], reply_markup = keyboard)
+        send_text(user_id, game["Texts"][text_id]["Bot text"], keyboard)
         dbworker.set_state(message.chat.id, config.States.S_CHOOSE_ANSWER.value)
 
 @bot.message_handler(content_types=["text"], func=lambda message: dbworker.get_current_state(message.chat.id) == config.States.S_CHOOSE_ANSWER.value)
@@ -203,19 +229,21 @@ def choose_answer(message):
     if answer_id == game["Texts"][text_id]["Right answer"]:
         if game["Texts"][text_id]["Next text"] == -1:
             dbworker.set_state(message.chat.id, config.States.S_CHOOSE_GAME.value)
-            bot.send_message(user_id, game["Final text"])
+            send_text(user_id, game["Texts"][text_id]["Correct reaction"])
+            send_text(user_id, game["Final text"])
             exit_game(user_id)
             choose_game(message)
         else:
+            send_text(user_id, game["Texts"][text_id]["Correct reaction"])
             update_possible_texts(user_id, game["Texts"][text_id]["Next text"])
             dbworker.set_state(message.chat.id, config.States.S_CHOOSE_TEXT.value)
             keyboard = all_texts_keyboard(game, possible_texts)
             bot_str = all_texts_string(game, possible_texts)
             bot.send_message(user_id, bot_str, reply_markup = keyboard)
     else:
-        bot.send_message(user_id, "К сожалению, это не верный ответ.")
+        send_text(user_id, game["Texts"][text_id]["Incorrect reaction"])
         keyboard = answers_keyboard(game["Texts"][text_id]["Answers"])
-        bot.send_message(user_id, game["Texts"][text_id]["Bot text"], reply_markup = keyboard)
+        send_text(user_id, game["Texts"][text_id]["Bot text"], keyboard)
 
 
 
