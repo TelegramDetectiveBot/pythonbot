@@ -225,24 +225,26 @@ def choose_answer(message):
     for i, answer in enumerate(game["Texts"][text_id]["Answers"]):
         if answer == message.text:
             answer_id = i
+    send_text(user_id, game["Texts"][text_id]["Detailed answers"][answer_id])
     
     if answer_id == game["Texts"][text_id]["Right answer"]:
         if game["Texts"][text_id]["Next text"] == -1:
             dbworker.set_state(message.chat.id, config.States.S_CHOOSE_GAME.value)
-            send_text(user_id, game["Texts"][text_id]["Correct reaction"])
+            send_text(user_id, game["Texts"][text_id]["Reaction"][answer_id])
             send_text(user_id, game["Final text"])
             exit_game(user_id)
             choose_game(message)
         else:
-            send_text(user_id, game["Texts"][text_id]["Correct reaction"])
+            send_text(user_id, game["Texts"][text_id]["Reaction"][answer_id])
             update_possible_texts(user_id, game["Texts"][text_id]["Next text"])
             dbworker.set_state(message.chat.id, config.States.S_CHOOSE_TEXT.value)
             keyboard = all_texts_keyboard(game, possible_texts)
             bot_str = all_texts_string(game, possible_texts)
             bot.send_message(user_id, bot_str, reply_markup = keyboard)
     else:
-        send_text(user_id, game["Texts"][text_id]["Incorrect reaction"])
+        send_text(user_id, game["Texts"][text_id]["Reaction"][answer_id])
         keyboard = answers_keyboard(game["Texts"][text_id]["Answers"])
+        bot.send_message(user_id, game["Texts"][text_id]["Name"] + ":")
         send_text(user_id, game["Texts"][text_id]["Bot text"], keyboard)
 
 
