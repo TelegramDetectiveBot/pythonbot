@@ -108,22 +108,22 @@ def choose_game(message):
 def all_texts_keyboard(game, possible_texts):
     markup_array = [1] * (len(possible_texts) + 1)
     string_array = [game["Texts"][i]["Name"] for i in possible_texts]
-    string_array.append("Начальный текст")
+    string_array.append("Предыстория")
     keyboard = buttons.button_generator(markup_array, string_array)
     return keyboard
 
 def all_texts_string(game, possible_texts):
-    bot_str = "Доступные тексты:\n\n"
+    bot_str = "Вы можете ознакомиться со следующими материалами:\n"
     for text_id in possible_texts:
         bot_str += "\n" + game["Texts"][text_id]["Name"]
-    bot_str += "\nНачальный текст"
+    bot_str += "\nПредыстория"
     return bot_str
 
 def answers_keyboard(answers):
     markup_array = [1] * len(answers)
     markup_array.append(1)
     string_array = answers
-    string_array.append("Все тексты")
+    string_array.append("Все показания")
     keyboard = buttons.button_generator(markup_array, string_array)
     return keyboard
 
@@ -179,18 +179,18 @@ def step(message):
             possible_texts = session["possible_texts"]
     game = get_game(game_name)
 
-    if message.text == "Начальный текст":
+    if message.text == "Предыстория":
         markup_array = [1]
-        string_array = ["Все тексты"]
+        string_array = ["Все показания"]
         keyboard = buttons.button_generator(markup_array, string_array)
         send_text(user_id, game["Start text"], keyboard)
 
-    if message.text == "Все тексты":
+    if message.text == "Все показания":
         keyboard = all_texts_keyboard(game, possible_texts)
         bot_str = all_texts_string(game, possible_texts)
         bot.send_message(user_id, bot_str, reply_markup = keyboard)
 
-    if message.text != "Начальный текст" and message.text != "Все тексты":
+    if message.text != "Предыстория" and message.text != "Все показания":
         text_id = 0
         for text in game["Texts"]:
             if text["Name"] == message.text:
@@ -214,7 +214,7 @@ def choose_answer(message):
             possible_texts = session["possible_texts"]
     game = get_game(game_name)
 
-    if message.text == "Все тексты":
+    if message.text == "Все показания":
         dbworker.set_state(message.chat.id, config.States.S_CHOOSE_TEXT.value)
         keyboard = all_texts_keyboard(game, possible_texts)
         bot_str = all_texts_string(game, possible_texts)
