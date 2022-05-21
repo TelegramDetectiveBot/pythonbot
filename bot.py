@@ -10,7 +10,6 @@ import os
 
 bot = telebot.TeleBot(config.token)
 
-sessions = []
 PAGE = 0
 ITEMS_ON_PAGE = 3
 
@@ -39,55 +38,28 @@ def get_game(game_name):
     return game
 
 def add_new_game(user_id, game):
-    global sessions
-    if sessions == []:
-        sessions = [{"user_id": user_id, "game_name": game["Name"], "possible_texts": game["Available texts"], "current_text": 0}]
-        dbworker.set_state(user_id, "game_name", game["Name"])
-        dbworker.set_state(user_id, "possible_texts", game["Available texts"])
-        dbworker.set_state(user_id, "current_text", 0)
-    else:
-        sessions.append({"user_id": user_id, "game_name": game["Name"], "possible_texts": game["Available texts"], "current_text": 0})
-        dbworker.set_state(user_id, "game_name", game["Name"])
-        dbworker.set_state(user_id, "possible_texts", game["Available texts"])
-        dbworker.set_state(user_id, "current_text", 0)
+    dbworker.db_insert(user_id, "game_name", game["Name"])
+    dbworker.db_insert(user_id, "possible_texts", game["Available texts"])
+    dbworker.db_insert(user_id, "current_text", 0)
 
 def update_current_text(user_id, text_id):
-    global sessions
-    session_id = 0
-    lst = dbworker.get_current_state(user_id, "current_text").strip('][').split(', ')
-    lst = [int(x) for x in lst]
-    for i, session in enumerate(sessions):
-        if session["user_id"] == user_id:
-            session_id = i
-    
-    sessions[session_id]["current_text"] = text_id
-    dbworker.set_state(user_id, "current_text", text_id)
+    dbworker.db_insert(user_id, "current_text", text_id)
 
 def update_possible_texts(user_id, text_id_array):
-    global sessions
-    session_id = 0
-    for i, session in enumerate(sessions):
-        if session["user_id"] == user_id:
-            session_id = i
-    
+    lst = dbworker.db_select(user_id, "possible_texts").strip('][').split(', ')
+    lst = [int(x) for x in lst]
+
     for text_id in text_id_array:
         is_available = False
-        for available_text in sessions[session_id]["possible_texts"]:
+        for available_text in lst:
             if text_id == available_text:
                 is_available = True
         if not is_available:
-           sessions[session_id]["possible_texts"].append(text_id) 
-           lst = dbworker.get_current_state(user_id, "current_text").strip('][').split(', ')
+           lst = dbworker.db_select(user_id, "possible_texts").strip('][').split(', ')
            lst = [int(x) for x in lst]
            lst.append(text_id)
-           dbworker.set_state(user_id, "current_text", lst)
+           dbworker.db_insert(user_id, "possible_texts", lst)
 
-def exit_game(user_id):
-    global sessions
-    for i, session in enumerate(sessions):
-        if session["user_id"] == user_id:
-            sessions.pop(i)
-            return
 
 def start_game(user_id, game_name):
     game = get_game(game_name)
@@ -116,7 +88,7 @@ def choose_game(message):
     if len(filenames) > ITEMS_ON_PAGE:
         keyboard.add("Далее")
     bot.send_message(message.chat.id, "Выберите игру:", reply_markup = keyboard)
-    dbworker.set_state(message.chat.id, "state", config.States.S_CHOOSE_GAME.value)
+    dbworker.db_insert(message.chat.id, "state", config.States.S_CHOOSE_GAME.value)
 
 def all_texts_keyboard(game, possible_texts):
     markup_array = [1] * (len(possible_texts) + 1)
@@ -140,7 +112,7 @@ def answers_keyboard(answers):
     keyboard = buttons.button_generator(markup_array, string_array)
     return keyboard
 
-@bot.message_handler(func=lambda message: dbworker.get_current_state(message.chat.id, "state") == config.States.S_CHOOSE_GAME.value)
+@bot.message_handler(func=lambda message: dbworker.db_select(message.chat.id, "state") == config.States.S_CHOOSE_GAME.value)
 def list_of_games_paging(message):
     global PAGE
     global ITEMS_ON_PAGE
@@ -149,12 +121,9 @@ def list_of_games_paging(message):
     elif message.text == "Назад":
         PAGE = PAGE - 1
     else:
-        dbworker.set_state(message.chat.id, "state", config.States.S_CHOOSE_TEXT.value)
+        dbworker.db_insert(message.chat.id, "state", config.States.S_CHOOSE_TEXT.value)
         add_new_game(message.chat.id, get_game(message.text))
-        game_name = ""
-        for session in sessions:
-            if session["user_id"] == message.chat.id:
-                game_name = session["game_name"]
+        game_name = dbworker.db_select(message.chat.id, "game_name")
         start_game(message.chat.id, game_name)
         return
     
@@ -180,16 +149,14 @@ def start(message, res=False):
     user_id = message.chat.id
     choose_game(message)
 
-@bot.message_handler(content_types=["text"], func=lambda message: dbworker.get_current_state(message.chat.id, "state") == config.States.S_CHOOSE_TEXT.value)
+@bot.message_handler(content_types=["text"], func=lambda message: dbworker.db_select(message.chat.id, "state") == config.States.S_CHOOSE_TEXT.value)
 def step(message):
-    global sessions
     user_id = message.chat.id
     game_name = ""
     possible_texts = []
-    for i, session in enumerate(sessions):
-        if session["user_id"] == user_id:
-            game_name = session["game_name"]
-            possible_texts = session["possible_texts"]
+    game_name = dbworker.db_select(user_id, "game_name")
+    lst = dbworker.db_select(user_id, "possible_texts").strip('][').split(', ')
+    possible_texts = [int(x) for x in lst]
     game = get_game(game_name)
 
     if message.text == "Предыстория":
@@ -211,24 +178,22 @@ def step(message):
         update_current_text(user_id, text_id)
         keyboard = answers_keyboard(game["Texts"][text_id]["Answers"])
         send_text(user_id, game["Texts"][text_id]["Bot text"], keyboard)
-        dbworker.set_state(message.chat.id, "state", config.States.S_CHOOSE_ANSWER.value)
+        dbworker.db_insert(message.chat.id, "state", config.States.S_CHOOSE_ANSWER.value)
 
-@bot.message_handler(content_types=["text"], func=lambda message: dbworker.get_current_state(message.chat.id, "state") == config.States.S_CHOOSE_ANSWER.value)
+@bot.message_handler(content_types=["text"], func=lambda message: dbworker.db_select(message.chat.id, "state") == config.States.S_CHOOSE_ANSWER.value)
 def choose_answer(message):
-    global sessions
     user_id = message.chat.id
     game_name = ""
     text_id = 0
     possible_texts = []
-    for session in sessions:
-        if session["user_id"] == user_id:
-            game_name = session["game_name"]
-            text_id = session["current_text"]
-            possible_texts = session["possible_texts"]
+    game_name = dbworker.db_select(user_id, "game_name")
+    text_id = int(dbworker.db_select(user_id, "current_text"))
+    lst = dbworker.db_select(user_id, "possible_texts").strip('][').split(', ')
+    possible_texts = [int(x) for x in lst]
     game = get_game(game_name)
 
     if message.text == "Все показания":
-        dbworker.set_state(message.chat.id, "state", config.States.S_CHOOSE_TEXT.value)
+        dbworker.db_insert(message.chat.id, "state", config.States.S_CHOOSE_TEXT.value)
         keyboard = all_texts_keyboard(game, possible_texts)
         bot_str = all_texts_string(game, possible_texts)
         bot.send_message(user_id, bot_str, reply_markup = keyboard)
@@ -242,15 +207,17 @@ def choose_answer(message):
     
     if answer_id == game["Texts"][text_id]["Right answer"]:
         if game["Texts"][text_id]["Next text"] == -1:
-            dbworker.set_state(message.chat.id, "state", config.States.S_CHOOSE_GAME.value)
+            dbworker.db_insert(message.chat.id, "state", config.States.S_CHOOSE_GAME.value)
             send_text(user_id, game["Texts"][text_id]["Reaction"][answer_id])
             send_text(user_id, game["Final text"])
-            exit_game(user_id)
+            # exit_game(user_id)
             choose_game(message)
         else:
             send_text(user_id, game["Texts"][text_id]["Reaction"][answer_id])
             update_possible_texts(user_id, game["Texts"][text_id]["Next text"])
-            dbworker.set_state(message.chat.id, "state", config.States.S_CHOOSE_TEXT.value)
+            dbworker.db_insert(message.chat.id, "state", config.States.S_CHOOSE_TEXT.value)
+            lst = dbworker.db_select(user_id, "possible_texts").strip('][').split(', ')
+            possible_texts = [int(x) for x in lst]
             keyboard = all_texts_keyboard(game, possible_texts)
             bot_str = all_texts_string(game, possible_texts)
             bot.send_message(user_id, bot_str, reply_markup = keyboard)
