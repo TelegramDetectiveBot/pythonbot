@@ -1,4 +1,5 @@
 from telebot import types
+from enum import Enum
 
 def button_generator(markup_array, string_array):
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard = True, one_time_keyboard = True)
@@ -12,3 +13,11 @@ def button_generator(markup_array, string_array):
 
     return keyboard
     #returning ReplyKeyboardMarkup
+
+class buttons(Enum):
+    B_PAGE_BACK = "Назад"
+    B_PAGE_FORWARD = "Вперед"
+    B_BACKSTORY = "Предыстроия"
+    B_ALL_TEXTS = "Все показания"
+    B_ACCUSE = "Обвинить"
+    B_PREVIOUS_TEXT = "Предыдущий текст"
