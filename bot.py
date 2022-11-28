@@ -167,7 +167,6 @@ def answers_keyboard(answers):
     keyboard = buttons.button_generator(markup_array, string_array)
     return keyboard
 
-
 @bot.message_handler(func=lambda message: dbworker.db_select(message.chat.id, "state") == config.States.S_CHOOSE_GAME.value)
 def list_of_games_paging(message):
     global PAGE
@@ -177,8 +176,12 @@ def list_of_games_paging(message):
     elif message.text == buttons.buttons.B_PAGE_BACK.value:
         PAGE = PAGE - 1
     else:
+        try:
+            add_new_game(message.chat.id, get_game(message.text))
+        except:
+            choose_game(message)
+            return
         update_current_state(message.chat.id, config.States.S_CHOOSE_TEXT.value)
-        add_new_game(message.chat.id, get_game(message.text))
         game_name = get_game_name(message.chat.id)
         start_game(message.chat.id, game_name)
         return
@@ -213,12 +216,23 @@ def main_menu(message):
     game = get_game(game_name)
     text_id = dbworker.db_select(user_id, "current_text")
     text = get_text(game, text_id)
-
+    
+    ok = 0
     for i, main_text in enumerate(game["Texts"]):
         if main_text["Name"] == message.text:
             update_current_text(user_id, i)
             text = get_text(game, str(i))
-
+            ok = 1
+    for butt in buttons.buttons:
+        if message.text == butt.value:
+            ok = 1
+    if(not ok):
+            possible_texts = get_possible_texts(user_id)
+            string_array = [game["Texts"][int(i)]["Name"] for i in possible_texts]
+            keyboard = get_keyboard(user_id, string_array)
+            bot_str = get_string(game, possible_texts)
+            send_text(user_id, bot_str, keyboard)
+            return
     if "Questions" in text:
         update_current_state(user_id, config.States.S_CHOOSE_TEXT.value)
         keyboard = get_keyboard(user_id, text["Questions"])
@@ -271,11 +285,16 @@ def main_text_step(message):
         text_id = dbworker.db_select(user_id, "current_text")
         text = get_text(game, text_id)
 
+        ok = 0
         for i, main_text in enumerate(game["Texts"]):
             if main_text["Name"] == message.text:
                 update_current_text(user_id, i)
                 text = get_text(game, str(i))
-
+                ok = 1
+        if(not ok):
+            keyboard = get_keyboard(user_id)
+            send_text(user_id, text["Bot text"], keyboard)   
+            return
         if "Questions" in text:
             for i, question in enumerate(text["Questions"]):
                 if message.text == question:
@@ -308,13 +327,18 @@ def choose_answer(message):
         send_text(user_id, bot_str, keyboard)
         return
 
-    answer_id = 0
+    answer_id = -1
     for i, answer in enumerate(text["Answers"]):
         if answer == message.text:
             answer_id = i
-    send_text(user_id, text["Detailed answers"][answer_id])
-    
-    if answer_id == text["Right answer"]:
+
+    if answer_id == -1:
+        keyboard = get_keyboard(user_id, text["Answers"])
+        send_text(user_id, text["Name"] + ":")
+        send_text(user_id, text["Bot text"], keyboard)
+        return
+    elif answer_id == text["Right answer"]:
+        send_text(user_id, text["Detailed answers"][answer_id])
         if text["Next text"] == "Final":
             update_current_state(message.chat.id, config.States.S_CHOOSE_GAME.value)
             send_text(user_id, text["Reaction"][answer_id])
@@ -323,13 +347,14 @@ def choose_answer(message):
         else:
             send_text(user_id, text["Reaction"][answer_id])
             update_possible_texts(user_id, text["Next text"])
-            update_current_state(message.chat.id, config.States.S_CHOOSE_TEXT.value)
+            update_current_state(message.chat.id, config.States.S_MAIN_MENU.value)
             possible_texts = get_possible_texts(user_id)
             string_array = [game["Texts"][int(i)]["Name"] for i in possible_texts]
             keyboard = get_keyboard(user_id, string_array)
             bot_str = get_string(game, possible_texts)
             send_text(user_id, bot_str, keyboard)
     else:
+        send_text(user_id, text["Detailed answers"][answer_id])
         send_text(user_id, text["Reaction"][answer_id])
         keyboard = get_keyboard(user_id, text["Answers"])
         send_text(user_id, text["Name"] + ":")

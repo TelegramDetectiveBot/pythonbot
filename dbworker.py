@@ -6,7 +6,7 @@ def db_clear():
     return
 
 def db_select(user_id, requset):
-    pointer = {"user_id": 0, "state": 1, "game_name": 2, "possible_texts": 3, "current_text": 4}
+    pointer = {"user_id": 0, "state": 1, "game_name": 2, "possible_texts": 3, "current_text": 4, "bot_str": 5, "keyboard": 6}
     with open(config.db_file, 'r') as file:
         reader = csv.reader(file)
         for row in reader:
