@@ -126,22 +126,26 @@ def get_keyboard(user_id, string_array = None):
     current_state = dbworker.db_select(user_id, "state")
 
     if current_state == config.States.S_CHOOSE_TEXT.value:
-        markup_array.append(1)
-        string_array.append(buttons.buttons.B_BACKSTORY.value)
+        # markup_array.append(1)
+        # string_array.append(buttons.buttons.B_BACKSTORY.value)
         markup_array.append(1)
         string_array.append(buttons.buttons.B_ALL_TEXTS.value)
         markup_array.append(1)
         string_array.append(buttons.buttons.B_ACCUSE.value)
 
     if current_state == config.States.S_CHOOSE_ANSWER.value:
-        markup_array.append(1)
-        string_array.append(buttons.buttons.B_BACKSTORY.value)
+        # markup_array.append(1)
+        # string_array.append(buttons.buttons.B_BACKSTORY.value)
         markup_array.append(1)
         string_array.append(buttons.buttons.B_ALL_TEXTS.value)
 
     if current_state == config.States.S_MAIN_MENU.value:
         markup_array.append(1)
         string_array.append(buttons.buttons.B_BACKSTORY.value)
+
+    if current_state == config.States.S_BACKSTORY.value:
+        markup_array.append(1)
+        string_array.append(buttons.buttons.B_ALL_TEXTS.value)
 
     if len(dbworker.db_select(user_id, "current_text").split(".")) > 1:
         markup_array.append(1)
@@ -216,6 +220,12 @@ def main_menu(message):
     game = get_game(game_name)
     text_id = dbworker.db_select(user_id, "current_text")
     text = get_text(game, text_id)
+
+    if message.text == buttons.buttons.B_BACKSTORY.value:
+        update_current_state(user_id, config.States.S_BACKSTORY.value)
+        keyboard = get_keyboard(user_id)
+        send_text(user_id, game["Start text"], keyboard)
+        return
     
     ok = 0
     for i, main_text in enumerate(game["Texts"]):
@@ -263,6 +273,7 @@ def main_text_step(message):
             send_text(user_id, text["Bot text"], keyboard)
 
     if message.text == buttons.buttons.B_BACKSTORY.value:
+        update_current_state(user_id, config.States.S_BACKSTORY.value)
         keyboard = get_keyboard(user_id)
         send_text(user_id, game["Start text"], keyboard)
 
@@ -321,7 +332,7 @@ def choose_answer(message):
     if message.text == buttons.buttons.B_ALL_TEXTS.value:
         possible_texts = get_possible_texts(user_id)
         string_array = [game["Texts"][int(i)]["Name"] for i in possible_texts]
-        update_current_state(message.chat.id, config.States.S_CHOOSE_TEXT.value)
+        update_current_state(message.chat.id, config.States.S_MAIN_MENU.value)
         keyboard = get_keyboard(user_id, string_array)
         bot_str = get_string(game, possible_texts)
         send_text(user_id, bot_str, keyboard)
@@ -360,6 +371,26 @@ def choose_answer(message):
         send_text(user_id, text["Name"] + ":")
         send_text(user_id, text["Bot text"], keyboard)
 
+@bot.message_handler(content_types=["text"], func=lambda message: dbworker.db_select(message.chat.id, "state") == config.States.S_BACKSTORY.value)
+def backstory(message):
+    user_id = message.chat.id
+    game_name = get_game_name(user_id)
+    game = get_game(game_name)
+    text_id = dbworker.db_select(user_id, "current_text")
+    text = get_text(game, text_id)
+
+    if message.text == buttons.buttons.B_ALL_TEXTS.value:
+        possible_texts = get_possible_texts(user_id)
+        string_array = [game["Texts"][int(i)]["Name"] for i in possible_texts]
+        update_current_state(message.chat.id, config.States.S_MAIN_MENU.value)
+        keyboard = get_keyboard(user_id, string_array)
+        bot_str = get_string(game, possible_texts)
+        send_text(user_id, bot_str, keyboard)
+        return
+    
+    update_current_state(user_id, config.States.S_BACKSTORY.value)
+    keyboard = get_keyboard(user_id)
+    send_text(user_id, game["Start text"], keyboard)
 
 dbworker.db_clear()
 bot.polling(none_stop=True, interval=0)
