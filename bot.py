@@ -1,5 +1,7 @@
 import sys
 import os
+import time
+from datetime import datetime, timezone
 sys.path.append(os.getcwd()+"/telebot")
 
 import telebot
@@ -15,6 +17,8 @@ bot = telebot.TeleBot(config.token)
 
 PAGE = 0
 ITEMS_ON_PAGE = 3
+
+allow = 0
 
 def send_text(user_id, text_array, keyboard = None):
     current_len = 0
@@ -173,6 +177,9 @@ def answers_keyboard(answers):
 
 @bot.message_handler(func=lambda message: dbworker.db_select(message.chat.id, "state") == config.States.S_CHOOSE_GAME.value)
 def list_of_games_paging(message):
+    global allow
+    if (not allow):
+        return
     global PAGE
     global ITEMS_ON_PAGE
     if message.text == buttons.buttons.B_PAGE_FORWARD.value:
@@ -209,12 +216,23 @@ def list_of_games_paging(message):
 
 @bot.message_handler(commands=["start"])
 def start(message, res=False):
+    global allow
+    if (not allow):
+        return
     #user_id = message.chat.id
     choose_game(message)
+
+@bot.message_handler(commands=["init"])
+def initialize(message):
+    global allow
+    allow = 1
 
 
 @bot.message_handler(content_types=["text"], func=lambda message: dbworker.db_select(message.chat.id, "state") == config.States.S_MAIN_MENU.value)
 def main_menu(message):
+    global allow
+    if (not allow):
+        return
     user_id = message.chat.id
     game_name = get_game_name(user_id)
     game = get_game(game_name)
@@ -255,6 +273,9 @@ def main_menu(message):
 
 @bot.message_handler(content_types=["text"], func=lambda message: dbworker.db_select(message.chat.id, "state") == config.States.S_CHOOSE_TEXT.value)
 def main_text_step(message):
+    global allow
+    if (not allow):
+        return
     user_id = message.chat.id
     game_name = get_game_name(user_id)
     game = get_game(game_name)
@@ -323,6 +344,9 @@ def main_text_step(message):
 
 @bot.message_handler(content_types=["text"], func=lambda message: dbworker.db_select(message.chat.id, "state") == config.States.S_CHOOSE_ANSWER.value)
 def choose_answer(message):
+    global allow
+    if (not allow):
+        return
     user_id = message.chat.id
     game_name = get_game_name(user_id)
     game = get_game(game_name)
@@ -373,6 +397,9 @@ def choose_answer(message):
 
 @bot.message_handler(content_types=["text"], func=lambda message: dbworker.db_select(message.chat.id, "state") == config.States.S_BACKSTORY.value)
 def backstory(message):
+    global allow
+    if (not allow):
+        return
     user_id = message.chat.id
     game_name = get_game_name(user_id)
     game = get_game(game_name)
